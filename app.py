@@ -1,12 +1,16 @@
 import streamlit as st
-from groq import Groq
+from huggingface_hub import InferenceClient
 from dotenv import load_dotenv
 import os
-import fitz
+import fitz  # PyMuPDF
 
 load_dotenv(override=True)
+token = os.getenv("HF_TOKEN")
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+client = InferenceClient(
+    model="Qwen/Qwen2.5-72B-Instruct",
+    token=token
+)
 
 SYSTEM_PROMPT = """You are an expert Career & Resume Assistant. You help users with:
 1. Resume review and improvement suggestions
@@ -16,8 +20,8 @@ SYSTEM_PROMPT = """You are an expert Career & Resume Assistant. You help users w
 
 Be specific, actionable, and encouraging. Ask clarifying questions when needed."""
 
-st.set_page_config(page_title="Career Assistant (Frontier)", page_icon="🚀")
-st.title("🚀 Career Assistant — Powered by Llama 3.1")
+st.set_page_config(page_title="Career Assistant (OSS)", page_icon="💼")
+st.title("💼 Career Assistant — Powered by Qwen2.5")
 st.caption("Your AI-powered career coach for resume, interviews & job search")
 
 if "messages" not in st.session_state:
@@ -55,21 +59,20 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 if prompt := st.chat_input("Ask me anything about your career..."):
-    full_prompt = prompt
-    if st.session_state.resume_text:
-        full_prompt = f"My Resume:\n{st.session_state.resume_text}\n\nMy Question: {prompt}"
-
-    st.session_state.messages.append({"role": "user", "content": full_prompt})
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    api_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    system = SYSTEM_PROMPT
+    if st.session_state.resume_text:
+        system += f"\n\nUser's Resume:\n{st.session_state.resume_text}"
+
+    api_messages = [{"role": "system", "content": system}]
     api_messages += st.session_state.messages
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+            response = client.chat_completion(
                 messages=api_messages,
                 max_tokens=1024,
                 temperature=0.7
